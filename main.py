@@ -6,7 +6,8 @@ import flet_datatable2 as ft2
 
 from tile_server import arrancar_proxy_tiles
 
-from widgets import MyCard, MyColumn, MyMap, MyDatepicker, MyTable
+from data_provider import DataProvider
+from widgets import MyCard, MyColumn, MyMap, MyDatepicker, MyTable, MyDropdown
 
 class MyApp:
     def __init__(self, page: ft.Page):
@@ -49,18 +50,24 @@ class MyApp:
             ],
         )
 
+        med_cont, cal_cont, act_cont = DataProvider.get_res_contamin()
+        med_prec, act_prec = DataProvider.get_res_precipit()
+
+        formato = lambda n: "{:.1f}".format(n)
+
         columna_1 = MyColumn(
             "Calidad del aire",
             ft.Icons.AIR,
-            [MyCard("NO2", 18.8, "µg/m³"), MyCard("O3", 4.1, "µg/m³"), MyCard("PM10", 24.8, "µg/m³")]
+            [MyCard("NO2", formato(med_cont["no2"]), "µg/m³"), MyCard("O3", formato(med_cont["o3"]), "µg/m³"), MyCard("PM10", formato(med_cont["pm10"]), "µg/m³")]
         )
-
+        # TODO: Añadir una flecha con la dirección del viento
         columna_2 = MyColumn(
             "Precipitaciones",
             ft.Icons.UMBRELLA,
-            [MyCard("Acumulado hoy", 0.00, "mm/m²"), MyCard("Intensidad", 0.0, "L/h"), MyCard("Probabilidad en 1h", 5, "%")]
+            [MyCard("Precipitación actual", formato(med_prec["precipitac"]), "mm/m²"), MyCard("Viento", formato(med_prec["viento_vel"]), "Km/h"), MyCard("Humedad", formato(med_prec["humedad_re"]), "%")]
         )
         
+        # TODO: Obtener datos del tráfico
         columna_3 = MyColumn(
             "Tráfico",
             ft.Icons.TRAFFIC,
@@ -68,12 +75,14 @@ class MyApp:
         )
 
         tabla = MyTable()
-        dialog_fecha = MyDatepicker(tabla)
+
+        dd_elegir_datos = MyDropdown()
+        dd_elegir_datos.on_change=lambda e: print(e.control.value)
 
         btn_elegir_fecha = ft.Button(
             content=ft.Text("Elegir fecha"),
             icon=ft.Icons.DATE_RANGE,
-            on_click=lambda: page.show_dialog(dialog_fecha),
+            on_click=lambda: page.show_dialog(MyDatepicker(tabla)),
         )
 
         page.add(
@@ -82,7 +91,6 @@ class MyApp:
                 length=3,
                 expand=True,
                 content=ft.Column(
-                    # expand=True,
                     controls=[
                         ft.TabBarView(
                             expand=True,
@@ -100,6 +108,7 @@ class MyApp:
                                         ft.Row(
                                             alignment=ft.MainAxisAlignment.CENTER,
                                             controls=[
+                                                dd_elegir_datos,
                                                 btn_elegir_fecha,
                                             ]
                                         ),
@@ -111,7 +120,7 @@ class MyApp:
                                         )
                                     ]
                                 ),
-                                MyMap([]),
+                                MyMap(),
                             ]
                         ),
                         ft.TabBar(
@@ -133,15 +142,15 @@ class MyApp:
 
 if __name__ == "__main__":
     # Crear un hilo para arrancar el seudo-servidor Proxy de fondo
-    # hilo_tiles = threading.Thread(
-    #     target=arrancar_proxy_tiles,
-    #     daemon=True
-    # )
+    hilo_tiles = threading.Thread(
+        target=arrancar_proxy_tiles,
+        daemon=True
+    )
     # Iniciar el hilo
-    # hilo_tiles.start()
+    hilo_tiles.start()
 
     # Espera para asegurar que el proxy está listo
-    # time.sleep(1)
+    time.sleep(.25)
 
     # Arrancar la app
     ft.run(MyApp)

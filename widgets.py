@@ -1,8 +1,11 @@
 import os, datetime, requests, csv
+import pandas as pd
 import flet as ft
 import flet_map as ftm
 import flet_datatable2 as ft2
 from bs4 import BeautifulSoup
+
+from data_provider import DataProvider
 
 class MyCard(ft.Card):
     def __init__(self, titulo: str, valor: str, unidad: str):
@@ -45,7 +48,7 @@ class MyColumn(ft.Column):
 
 
 class MyMap(ftm.Map):
-    def __init__(self, markers: list[ftm.Marker]):
+    def __init__(self):
         super().__init__(layers=[], expand=True)
 
         self.expand = 1
@@ -57,7 +60,7 @@ class MyMap(ftm.Map):
         self.layers = [
             ftm.TileLayer(
                 url_template="http://localhost:5000/tiles/{z}/{x}/{y}.png",
-                user_agent_package_name="valencia.dashboard.local",  # TODO: Cambiar al personal
+                user_agent_package_name="valencia.dashboard.local",
                 on_image_error=lambda e: print("TileLayer Error"),
                 max_zoom=18,
                 min_zoom=12,
@@ -82,22 +85,56 @@ class MyMap(ftm.Map):
                 alignment=ft.Alignment.TOP_RIGHT,
                 on_click=lambda e: print("Clicked SimpleAttribution"),
             ),
-            # ftm.MarkerLayer(
+            ftm.MarkerLayer(
+                markers=MyMap.get_marcadores()
+            )
+        ]
+    
+    @staticmethod
+    def get_marcadores():
+               
+        # CONTAMINACIÓN
+        url = "https://valencia.opendatasoft.com/api/explore/v2.1/catalog/datasets/estacions-contaminacio-atmosferiques-estaciones-contaminacion-atmosfericas/records?select=objectid%2Cnombre%2Cdireccion%2Ctipozona%2Cso2%2Cno2%2Co3%2Cco%2Cpm10%2Cpm25%2Ctipoemisio%2Cfecha_carg%2Ccalidad_am%2Cgeo_point_2d&limit=20"
+        data = pd.read_json(url, encoding="utf-8")
 
-            # )
+        estaciones = [e for e in data["results"]]
+        df = pd.DataFrame(estaciones)
+
+        # Extraer latitud y longitud de geo_point_2d
+        df["lon"] = df["geo_point_2d"].apply(lambda x: x["lon"] if isinstance(x, dict) and "lon" in x else None)
+        df["lat"] = df["geo_point_2d"].apply(lambda x: x["lat"] if isinstance(x, dict) and "lat" in x else None)
+
+        # Eliminar la columna geo_point_2d para evitar confusiones
+        df = df.drop(columns="geo_point_2d")
+        
+        # TODO: Hacer marcadores interactivos con el nombre de la estación y su calidad del aire
+        marcadores = [
+            ftm.Marker(
+                content=ft.Icon(ft.Icons.AIR, color=ft.Colors.RED),
+                coordinates=ftm.MapLatitudeLongitude(lat, lon),
+            ) for nombre, calidad, lat, lon in zip(df["nombre"], df["calidad_am"], df["lat"], df["lon"])
         ]
 
+        return marcadores
+
+
+class MyDropdown(ft.DropdownM2):
+    def __init__(self):
+        super().__init__()
+
+        self.width = 200
+        self.value = DataProvider.CONTAMINACION
+        self.options = [
+            ft.dropdownm2.Option(DataProvider.CONTAMINACION),
+            ft.dropdownm2.Option(DataProvider.PRECIPITACIONES),
+            ft.dropdownm2.Option(DataProvider.TRAFICO)
+        ]
 
 class MyTable(ft2.DataTable2):
     def __init__(self):
         super().__init__(columns=[])
 
-        self.WORK_DIR = os.path.dirname(__file__)
-        self.CACHE_DIR = os.path.join(self.WORK_DIR, "hist_cache")
-
         self.crear = True
-
-        self.disabled = True
 
         self.heading_row_color = ft.Colors.SECONDARY_CONTAINER
         self.sort_ascending = True
@@ -109,16 +146,16 @@ class MyTable(ft2.DataTable2):
 
         self.actualizar()
 
-    def actualizar(self, fecha: str = ""):
+    def actualizar(self, categoria: str = DataProvider.PRECIPITACIONES, fecha: str = ""):
 
-        datos = self.obtener_datos(fecha)
+        datos = self.obtener_datos(categoria, fecha)
 
         encabezados = datos[0]
         filas = datos[1:]
 
         self.columns = [
             ft2.DataColumn2(
-                label=ft.Text(enc),
+                label=ft.Text(enc, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
                 size=ft2.DataColumnSize.M,
             ) for enc in encabezados
         ]
@@ -127,7 +164,7 @@ class MyTable(ft2.DataTable2):
             ft2.DataRow2(
                 expand=True,
                 cells=[
-                    ft.DataCell(ft.Text(celda)) for celda in fila
+                    ft.DataCell(ft.Text(celda, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS)) for celda in fila
                 ]
             ) for fila in filas
         ]
@@ -137,57 +174,17 @@ class MyTable(ft2.DataTable2):
         else:
             self.update()
 
-    def obtener_datos(self, fecha: str):
+    def obtener_datos(self, categoria: str, fecha: str):
         if fecha == "":
             hoy = datetime.datetime.now()
             fecha = (hoy - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-
-        csv_path = f"{self.CACHE_DIR}/{fecha}.csv"
-        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
-
-        filas = []
-
-        if not os.path.exists(csv_path):
-
-            url = f"https://www.avamet.org/mx-meteoxarxa.php?data={fecha}&territori=c15"
-            html = requests.get(url).text
-
-            soup = BeautifulSoup(html, "html.parser")
-            tablas = soup.find_all("table")
-
-            encabezados = ["Estació", "Temp mín (°C)", "Temp mit (°C)", "Temp màx (°C)", "HR mit (%)", "Prec mit (mm)", "Vent mit", "Vent dir", "Vent màx"]
-
-            filas.append(encabezados)
-
-            if not tablas:
-                print("No se encontraron tablas")
-            else:
-                tabla = tablas[0]
-
-                i = 0
-                for tr in tabla.find_all("tr"):
-                    if i > 3:
-                        celdas = []
-                        for td in tr.find_all("td"):
-                            celdas.append(td.get_text(strip=True))
-
-                        filas.append(celdas)
-
-                    i += 1
-
-            with open(csv_path, "w", encoding="utf-8") as file:
-                writer = csv.writer(file)
-                writer.writerows(filas)
-
-            print("DESCARGADO")
-
+       
+        if categoria == DataProvider.CONTAMINACION:
+            return DataProvider.get_hist_contaminacion()
+        elif categoria == DataProvider.PRECIPITACIONES:
+            return DataProvider.get_hist_precipiaciones(fecha)
         else:
-            with open(csv_path, "r", encoding="utf-8") as file:
-                filas = list(csv.reader(file))
-
-            print("LEÍDO")
-
-        return filas
+            pass
 
 
 class MyDatepicker(ft.DatePicker):
@@ -202,4 +199,4 @@ class MyDatepicker(ft.DatePicker):
 
     def on_fecha_seleccionada(self, e: ft.Event[ft.DatePicker], tabla: MyTable):
         fecha = (e.control.value + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-        tabla.actualizar(fecha)
+        tabla.actualizar(fecha=fecha)
