@@ -1,13 +1,11 @@
-import threading, time
-import datetime as dt
-
+import threading
 import flet as ft
-import flet_datatable2 as ft2
 
 from tile_server import arrancar_proxy_tiles
 
 from data_provider import DataProvider
-from widgets import MyCard, MyColumn, MyMap, MyDatepicker, MyTable, MyDropdown
+from widgets import MyCard, MyColumn, MyMap, MyDatepicker, MyTable, MyDropdown, ExportDialog
+
 
 class MyApp:
     def __init__(self, page: ft.Page):
@@ -50,39 +48,55 @@ class MyApp:
             ],
         )
 
-        med_cont, cal_cont, act_cont = DataProvider.get_res_contamin()
-        med_prec, act_prec = DataProvider.get_res_precipit()
+        # Tiempo real
+        med_cont, cal_cont, act_cont = DataProvider.get_res_contamin()  # Datos de contaminación
+        med_prec, act_prec = DataProvider.get_res_precipit()  # Datos de precipitaciones
 
-        formato = lambda n: "{:.1f}".format(n)
+        def formato(n): return "{:.1f}".format(n)  # Formato de los números
 
         columna_1 = MyColumn(
             "Calidad del aire",
             ft.Icons.AIR,
-            [MyCard("NO2", formato(med_cont["no2"]), "µg/m³"), MyCard("O3", formato(med_cont["o3"]), "µg/m³"), MyCard("PM10", formato(med_cont["pm10"]), "µg/m³")]
+            [MyCard("NO2", formato(med_cont["no2"]), "µg/m³"), MyCard("O3", formato(
+                med_cont["o3"]), "µg/m³"), MyCard("PM10", formato(med_cont["pm10"]), "µg/m³")]
         )
         # TODO: Añadir una flecha con la dirección del viento
         columna_2 = MyColumn(
             "Precipitaciones",
             ft.Icons.UMBRELLA,
-            [MyCard("Precipitación actual", formato(med_prec["precipitac"]), "mm/m²"), MyCard("Viento", formato(med_prec["viento_vel"]), "Km/h"), MyCard("Humedad", formato(med_prec["humedad_re"]), "%")]
+            [MyCard("Precipitación actual", formato(med_prec["precipitac"]), "mm/m²"), MyCard("Viento", formato(
+                med_prec["viento_vel"]), "Km/h"), MyCard("Humedad", formato(med_prec["humedad_re"]), "%")]
         )
-        
+
         # TODO: Obtener datos del tráfico
         columna_3 = MyColumn(
             "Tráfico",
             ft.Icons.TRAFFIC,
-            [MyCard("Índice de congestión", 68, "%"), MyCard("Accidentes activos", 4, ""), MyCard("Velocidad media de flujo", 42, "km/h")]
+            [MyCard("Índice de congestión", 0, "%"), MyCard(
+                "Accidentes activos", 0, ""), MyCard("Velocidad media de flujo", 0, "km/h")]
         )
 
-        tabla = MyTable()
+        # Históricos
+        tabla_historicos = MyTable()
 
-        dd_elegir_datos = MyDropdown()
-        dd_elegir_datos.on_change=lambda e: print(e.control.value)
+        titulo_historico = ft.Text(
+            f"Histórico - {tabla_historicos.fecha}:", weight=ft.FontWeight.BOLD, size=20)
+
+        dd_elegir_datos = MyDropdown(tabla_historicos)
 
         btn_elegir_fecha = ft.Button(
             content=ft.Text("Elegir fecha"),
             icon=ft.Icons.DATE_RANGE,
-            on_click=lambda: page.show_dialog(MyDatepicker(tabla)),
+            on_click=lambda _: page.show_dialog(MyDatepicker(
+                tabla=tabla_historicos, titulo=titulo_historico)),
+        )
+
+        exp_dialog = ExportDialog(tabla_historicos)
+
+        btn_exportar_hist = ft.Button(
+            content=ft.Text("Exportar"),
+            icon=ft.Icons.FILE_DOWNLOAD_ROUNDED,
+            on_click=lambda _: page.show_dialog(exp_dialog),
         )
 
         page.add(
@@ -106,16 +120,20 @@ class MyApp:
                                     expand=True,
                                     controls=[
                                         ft.Row(
-                                            alignment=ft.MainAxisAlignment.CENTER,
+                                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                                             controls=[
+                                                titulo_historico,
                                                 dd_elegir_datos,
                                                 btn_elegir_fecha,
+                                                btn_exportar_hist,
                                             ]
                                         ),
                                         ft.Row(
                                             expand=3,
+                                            alignment=ft.MainAxisAlignment.CENTER,
                                             controls=[
-                                                tabla,
+                                                # Utilizar el stack para mostrar el spinner sobre la tabla
+                                                tabla_historicos.contenedor,
                                             ]
                                         )
                                     ]
@@ -138,8 +156,6 @@ class MyApp:
         )
 
 
-
-
 if __name__ == "__main__":
     # Crear un hilo para arrancar el seudo-servidor Proxy de fondo
     hilo_tiles = threading.Thread(
@@ -148,9 +164,6 @@ if __name__ == "__main__":
     )
     # Iniciar el hilo
     hilo_tiles.start()
-
-    # Espera para asegurar que el proxy está listo
-    time.sleep(.25)
 
     # Arrancar la app
     ft.run(MyApp)
