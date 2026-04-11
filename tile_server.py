@@ -4,7 +4,7 @@ import requests, os, time
 app = Flask(__name__)
 
 WORK_DIR = os.path.dirname(__file__)
-CACHE_DIR = os.path.join(WORK_DIR, "tile_cache")
+CACHE_DIR = os.path.join(WORK_DIR, "data/tile_cache")
 TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 
 HEADERS = {

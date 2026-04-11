@@ -1,4 +1,3 @@
 __pycache__/
-hist_cache/
-tile_cache/
+data/
 data-detective.code-workspace
