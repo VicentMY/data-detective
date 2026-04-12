@@ -19,7 +19,7 @@ class MyCard(ft.Card):
         self.shadow_color = ft.Colors.ON_SURFACE_VARIANT
         
         # Guardar como atributos los controles que se van a actualizar
-        self.txt_valor = ft.Text(valor, size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.PRIMARY, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
+        self.txt_valor = ft.Text(valor, size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.PRIMARY, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS)
         self.txt_unidad = ft.Text(unidad, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
         self.txt_extra = ft.Text(extra if extra else "", weight=ft.FontWeight.BOLD, color=ft.Colors.PRIMARY, size=20, margin=ft.Margin(right=10), max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
 
@@ -102,7 +102,7 @@ class MyColumn(ft.Column):
                     ft.Button(
                         content=ft.Text("Ver más", max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
                         icon=ft.Icons.MORE_HORIZ_OUTLINED,
-                        on_click=lambda: print("VER MÁS"), # TODO: Implementar diálogo para ver más datos
+                        on_click=self.ver_mas,
                         color=ft.Colors.ON_PRIMARY_CONTAINER,
                         bgcolor=ft.Colors.PRIMARY_CONTAINER,
                     ),
@@ -123,6 +123,21 @@ class MyColumn(ft.Column):
         """
         self.txt_actualizado.value = f"Última actualización: {actualizado}"
         self.update()
+
+    def ver_mas(self, e):
+        """
+        Abre un diálogo con más información según la categoría de la columna.
+        """
+        from widgets import PollutionDialog, PrecipitationsDialog, TrafficDialog
+
+        if self.categoria == DataProvider.CONTAMINACION:
+            self.page.show_dialog(PollutionDialog())
+        elif self.categoria == DataProvider.PRECIPITACIONES:
+            self.page.show_dialog(PrecipitationsDialog())
+        elif self.categoria == DataProvider.TRAFICO:
+            self.page.show_dialog(TrafficDialog())
+        else:
+            self.page.show_dialog(ft.SnackBar(ft.Text(f"Diálogo de ver más no implementado para {self.categoria}", color=ft.Colors.ON_ERROR_CONTAINER), bgcolor=ft.Colors.ERROR_CONTAINER))
     
     async def exportar_datos(self, tipo: str):
         """
@@ -132,7 +147,7 @@ class MyColumn(ft.Column):
             tipo (str): Formato de exportación.
         """
         # Obtener los datos desde DataProvider
-        datos = DataProvider.get_real_time_data(self.categoria)
+        datos = DataProvider.get_tiempo_real(self.categoria)
 
         # Si no hay datos, no se puede exportar
         if datos.empty:

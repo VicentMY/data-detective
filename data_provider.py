@@ -584,7 +584,7 @@ class DataProvider():
         elif categoria == DataProvider.PRECIPITACIONES:
             path = f"{DataProvider.REAL_TIME_CACHE_DIR}/precipitaciones.parquet"
         elif categoria == DataProvider.TRAFICO:
-            path = f"{DataProvider.REAL_TIME_CACHE_DIR}/trafico1.parquet"
+            path = f"{DataProvider.REAL_TIME_CACHE_DIR}/trafico.parquet"
         else:
             return pd.DataFrame()
 

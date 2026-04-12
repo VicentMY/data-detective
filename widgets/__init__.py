@@ -5,6 +5,7 @@ from widgets.cards import MyCard, MyColumn
 from widgets.map import MyMap
 from widgets.table import MyTable, MyDatepicker, MyDropdown
 from widgets.export_dialog import ExportDialog
+from widgets.stations_dialog import PollutionDialog, PrecipitationsDialog, TrafficDialog
 
 __all__ = [
     "MyCard",
@@ -14,4 +15,7 @@ __all__ = [
     "MyDatepicker",
     "MyDropdown",
     "ExportDialog",
+    "PollutionDialog",
+    "PrecipitationsDialog",
+    "TrafficDialog",
 ]
