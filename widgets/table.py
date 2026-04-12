@@ -1,4 +1,4 @@
-import os, datetime, asyncio
+import datetime, asyncio
 import flet as ft
 import flet_datatable2 as ft2
 import pandas as pd
@@ -36,19 +36,23 @@ class MyTable(ft2.DataTable2):
         ]
 
         # Spinner para indicar que se están cargando los datos
-        self._spinner = ft.Column(
-            visible=False,
+        self._spinner = ft.Container(
             expand=True,
-            alignment=ft.MainAxisAlignment.CENTER,
-            controls=[
-                ft.Row(
-                    alignment=ft.MainAxisAlignment.CENTER,
-                    controls=[
-                        ft.ProgressRing(),
-                        ft.Text("Cargando..."),
-                    ]
-                )
-            ]
+            bgcolor=ft.Colors.with_opacity(0.7, ft.Colors.SURFACE),
+            content=ft.Column(
+                visible=True,
+                expand=True,
+                alignment=ft.MainAxisAlignment.CENTER,
+                controls=[
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        controls=[
+                            ft.ProgressRing(),
+                            ft.Text("Cargando..."),
+                        ]
+                    )
+                ]
+            ),
         )
 
         # Stack para mostrar el spinner sobre la tabla
@@ -71,9 +75,8 @@ class MyTable(ft2.DataTable2):
         Actualiza la tabla con los datos de la categoría y fecha seleccionadas.
         """
 
-        # Mostrar el spinner y ocultar la tabla
+        # Mostrar el spinner
         self._spinner.visible = True
-        self.visible = False
         self.page.update()
 
         try:
@@ -104,12 +107,11 @@ class MyTable(ft2.DataTable2):
             ]
 
         except Exception as e:
-            print(f"No se ha podido obtener los datos históricos: {e}")
+            print(f"[MyTable] No se ha podido obtener los datos históricos: {e}")
             self.page.show_dialog(ft.SnackBar(ft.Text("No se ha podido obtener los datos históricos", color=ft.Colors.ON_ERROR_CONTAINER), bgcolor=ft.Colors.ERROR_CONTAINER))
 
-        # Ocultar el spinner y mostrar la tabla
+        # Ocultar el spinner
         self._spinner.visible = False
-        self.visible = True
         self.page.update()
 
     def _obtener_datos_sync(self, categoria: str, fecha: str):
@@ -165,7 +167,7 @@ class MyTable(ft2.DataTable2):
         """
         # Si no hay datos, no se puede exportar
         if self.datos.empty:
-            print("No hay datos para exportar")
+            print("[MyTable] No hay datos para exportar")
             self.page.show_dialog(ft.SnackBar(ft.Text("No hay datos para exportar", color=ft.Colors.ON_ERROR_CONTAINER), bgcolor=ft.Colors.ERROR_CONTAINER))
             return
 
@@ -190,7 +192,7 @@ class MyTable(ft2.DataTable2):
             elif tipo.lower() == "parquet":
                 self.datos.to_parquet(path, index=False)
             
-            print("Guardando en:", path)
+            print("[MyTable] Exportado en:", path)
             self.page.show_dialog(ft.SnackBar(ft.Text("Datos exportados correctamente", color=ft.Colors.ON_PRIMARY_CONTAINER), bgcolor=ft.Colors.PRIMARY_CONTAINER))
 
 
@@ -213,7 +215,6 @@ class MyDatepicker(ft.DatePicker):
             await self.on_fecha_seleccionada(e, tabla=tabla, titulo=titulo)
 
         self.on_change = _on_change
-        self.on_dismiss = lambda: print("Dissmissed")
 
     async def on_fecha_seleccionada(self, e: ft.Event[ft.DatePicker], tabla: MyTable, titulo: ft.Text):
         """

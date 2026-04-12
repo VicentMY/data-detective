@@ -40,61 +40,72 @@ class MyApp:
             tooltip=f"Cambiar a modo {"claro" if page.theme_mode == ft.ThemeMode.DARK else "oscuro"}",
         )
 
-        async def actualizar_todo(e):
+        # Tiempo real - Formato numérico personalizado
+        def formato(n): return "{:.1f}".format(n)
+
+        # Carga asíncrona y en paralelo de los tres orígenes de datos
+        async def cargar_datos():
             """
-            Actualiza todos los datos de la aplicación.
-            Las llamadas a DataProvider son bloqueantes, por lo que se ejecutan
-            en hilos separados con asyncio.to_thread() para no congelar la UI.
+            Carga los datos de los tres orígenes de datos en paralelo.
             """
-            # Deshabilitar botón y rotar
+            async def cargar_contaminacion():
+                med_cont, cal_cont, act_cont = await asyncio.to_thread(DataProvider.get_res_contamin, page)
+                columna_1.actualizar(act_cont)
+                columna_1.controls[2].actualizar(formato(med_cont["no2"]))
+                columna_1.controls[3].actualizar(formato(med_cont["o3"]))
+                columna_1.controls[4].actualizar(formato(med_cont["pm10"]))
+                page.update()
+
+            async def cargar_precipitaciones():
+                med_prec, int_prec, dir_viento, act_prec = await asyncio.to_thread(DataProvider.get_res_precipit, page)
+                columna_2.actualizar(act_prec)
+                columna_2.controls[2].actualizar(formato(med_prec["Precipitación acumulada día (mm)"]))
+                columna_2.controls[3].actualizar("-" if int_prec == "" else int_prec)
+                columna_2.controls[4].actualizar(formato(med_prec["Velocidad del viento (km/h)"]), dir_viento)
+                page.update()
+
+            async def cargar_trafico():
+                med_traf, est_traf, trm_traf, act_traf = await asyncio.to_thread(DataProvider.get_res_trafico, page)
+                columna_3.actualizar(act_traf)
+                columna_3.controls[2].actualizar(formato(med_traf))
+                columna_3.controls[3].actualizar(est_traf)
+                columna_3.controls[4].actualizar(trm_traf)
+                page.update()
+
+            # Mostrar spinner de carga
+            spinner_carga.visible = True
+            # Deshabilitar botón de refrescar
             btn_refrescar.disabled = True
+            # Rotar el botón de refrescar
             btn_refrescar.rotate.angle += pi
-            btn_refrescar.update()
             page.update()
 
-            def formato(n): return "{:.1f}".format(n)
+            # Los tres orígenes de datos se cargan en paralelo
+            await asyncio.gather(
+                cargar_contaminacion(),
+                cargar_precipitaciones(),
+                cargar_trafico(),
+            )
 
-            # Contaminación (hilo separado para no bloquear el event loop)
-            med_cont, cal_cont, act_cont = await asyncio.to_thread(DataProvider.get_res_contamin, page)
-            columna_1.actualizar(act_cont)
-            columna_1.controls[2].actualizar(formato(med_cont["no2"]))
-            columna_1.controls[3].actualizar(formato(med_cont["o3"]))
-            columna_1.controls[4].actualizar(formato(med_cont["pm10"]))
-            page.update()
-
-            # Precipitaciones
-            med_prec, int_prec, dir_viento, act_prec = await asyncio.to_thread(DataProvider.get_res_precipit, page)
-            columna_2.actualizar(act_prec)
-            columna_2.controls[2].actualizar(formato(med_prec["Precipitación acumulada día (mm)"]))
-            columna_2.controls[3].actualizar("-" if int_prec == "" else int_prec)
-            columna_2.controls[4].actualizar(formato(med_prec["Velocidad del viento (km/h)"]), dir_viento)
-            page.update()
-
-            # Tráfico
-            med_traf, est_traf, trm_traf, act_traf = await asyncio.to_thread(DataProvider.get_res_trafico, page)
-            columna_3.actualizar(act_traf)
-            columna_3.controls[2].actualizar(formato(med_traf))
-            columna_3.controls[3].actualizar(est_traf)
-            columna_3.controls[4].actualizar(trm_traf)
-            page.update()
-
-            # Históricos (ya gestiona internamente su propio hilo)
+            # Históricos
             await tabla_historicos.actualizar()
 
-            # Restaurar botón
+            # Ocultar el spinner cuando todos hayan terminado
+            spinner_carga.visible = False
+            # Habilitar botón de refrescar
             btn_refrescar.disabled = False
+            # Devolver el botón de refrescar a su estado original
             btn_refrescar.rotate.angle += pi
-            btn_refrescar.update()
             page.update()
 
             # Mostrar snackbar de éxito
-            page.show_dialog(ft.SnackBar(ft.Text("Datos actualizados correctamente", color=ft.Colors.ON_PRIMARY_CONTAINER), bgcolor=ft.Colors.PRIMARY_CONTAINER))
+            page.show_dialog(ft.SnackBar(ft.Text("Datos cargados correctamente", color=ft.Colors.ON_PRIMARY_CONTAINER), bgcolor=ft.Colors.PRIMARY_CONTAINER))
 
         # Botón de refrescar
         btn_refrescar = ft.IconButton(
             icon=ft.Icons.REFRESH,
             tooltip="Refrescar datos",
-            on_click=actualizar_todo,
+            on_click=lambda _: page.run_task(cargar_datos),
             rotate=ft.Rotate(angle=0, alignment=ft.Alignment.CENTER),
             animate_rotation=ft.Animation(duration=500, curve=ft.AnimationCurve.EASE_IN_OUT),
         )
@@ -111,9 +122,6 @@ class MyApp:
                 btn_alternar_tema,
             ],
         )
-
-        # Tiempo real - Formato numérico personalizado
-        def formato(n): return "{:.1f}".format(n)
 
         # Crear columnas con datos placeholder (se actualizan cuando terminan de cargar)
         columna_1 = MyColumn(
@@ -153,57 +161,23 @@ class MyApp:
         )
 
         # Spinner de carga inicial para el área de datos en tiempo real
-        spinner_inicio = ft.Column(
-            visible=True,
-            expand=True,
-            alignment=ft.MainAxisAlignment.CENTER,
-            controls=[
-                ft.Row(
-                    alignment=ft.MainAxisAlignment.CENTER,
-                    controls=[
-                        ft.ProgressRing(),
-                        ft.Text("Cargando datos en tiempo real...", size=16),
-                    ]
-                )
-            ]
+        spinner_carga = ft.Container(
+            bgcolor=ft.Colors.with_opacity(0.7, ft.Colors.SURFACE),
+            content=ft.Column(
+                visible=True,
+                expand=True,
+                alignment=ft.MainAxisAlignment.CENTER,
+                controls=[
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        controls=[
+                            ft.ProgressRing(),
+                            ft.Text("Cargando datos...", size=16),
+                        ]
+                    )
+                ]
+            ),
         )
-
-        # Carga asíncrona y en paralelo de los tres orígenes de datos
-        async def cargar_datos_iniciales():
-            async def cargar_contaminacion():
-                med_cont, cal_cont, act_cont = await asyncio.to_thread(DataProvider.get_res_contamin, page)
-                columna_1.actualizar(act_cont)
-                columna_1.controls[2].actualizar(formato(med_cont["no2"]))
-                columna_1.controls[3].actualizar(formato(med_cont["o3"]))
-                columna_1.controls[4].actualizar(formato(med_cont["pm10"]))
-                page.update()
-
-            async def cargar_precipitaciones():
-                med_prec, int_prec, dir_viento, act_prec = await asyncio.to_thread(DataProvider.get_res_precipit, page)
-                columna_2.actualizar(act_prec)
-                columna_2.controls[2].actualizar(formato(med_prec["Precipitación acumulada día (mm)"]))
-                columna_2.controls[3].actualizar("-" if int_prec == "" else int_prec)
-                columna_2.controls[4].actualizar(formato(med_prec["Velocidad del viento (km/h)"]), dir_viento)
-                page.update()
-
-            async def cargar_trafico():
-                med_traf, est_traf, trm_traf, act_traf = await asyncio.to_thread(DataProvider.get_res_trafico, page)
-                columna_3.actualizar(act_traf)
-                columna_3.controls[2].actualizar(formato(med_traf))
-                columna_3.controls[3].actualizar(est_traf)
-                columna_3.controls[4].actualizar(trm_traf)
-                page.update()
-
-            # Los tres orígenes de datos se cargan en paralelo
-            await asyncio.gather(
-                cargar_contaminacion(),
-                cargar_precipitaciones(),
-                cargar_trafico(),
-            )
-
-            # Ocultar el spinner cuando todos hayan terminado
-            spinner_inicio.visible = False
-            page.update()
 
         # Históricos
         tabla_historicos = MyTable()
@@ -228,6 +202,111 @@ class MyApp:
             on_click=lambda _: page.show_dialog(hist_exp_dialog),
         )
 
+        # Mapa
+        mi_mapa = MyMap()
+
+        # Selector de capas para el mapa
+        selector_capas = ft.Container(
+            top=10,
+            left=10,
+            bgcolor=ft.Colors.with_opacity(0.85, ft.Colors.SURFACE_CONTAINER),
+            padding=10,
+            border_radius=8,
+            shadow=ft.BoxShadow(
+                blur_radius=5,
+                color=ft.Colors.with_opacity(0.3, ft.Colors.SHADOW),
+            ),
+            content=ft.Column(
+                tight=True,
+                spacing=5,
+                controls=[
+                    ft.Text("Capas del Mapa", weight=ft.FontWeight.BOLD),
+                    ft.Checkbox(
+                        label="Contaminación", 
+                        value=mi_mapa.contaminacion_visible, 
+                        on_change=lambda e: mi_mapa.set_contaminacion_visible(e.control.value)
+                    ),
+                    ft.Checkbox(
+                        label="Precipitaciones", 
+                        value=mi_mapa.precipitaciones_visible, 
+                        on_change=lambda e: mi_mapa.set_precipitaciones_visible(e.control.value)
+                    ),
+                    ft.Checkbox(
+                        label="Tráfico", 
+                        value=mi_mapa.trafico_visible, 
+                        on_change=lambda e: mi_mapa.set_trafico_visible(e.control.value)
+                    ),
+                ]
+            )
+        )
+
+        # Leyenda del mapa
+        def item_leyenda(color, texto):
+            return ft.Row(
+                controls=[
+                    ft.Container(width=12, height=12, bgcolor=color, border_radius=3),
+                    ft.Text(texto, size=11)
+                ],
+                spacing=5,
+                tight=True
+            )
+
+        contenedor_leyenda = ft.Container(
+            bottom=60,
+            left=10,
+            bgcolor=ft.Colors.with_opacity(0.9, ft.Colors.SURFACE_CONTAINER),
+            padding=15,
+            border_radius=10,
+            visible=False,
+            width=210,
+            shadow=ft.BoxShadow(
+                blur_radius=10,
+                color=ft.Colors.with_opacity(0.3, ft.Colors.SHADOW),
+            ),
+            content=ft.Column(
+                tight=True,
+                spacing=8,
+                scroll=ft.ScrollMode.AUTO,
+                controls=[
+                    ft.Text("Leyenda", weight=ft.FontWeight.BOLD, size=14),
+                    ft.Divider(height=1),
+                    ft.Text("Contaminación", weight=ft.FontWeight.W_600, size=12),
+                    item_leyenda(ft.Colors.GREEN, "Buena"),
+                    item_leyenda(ft.Colors.BLUE, "Razonablemente Buena"),
+                    item_leyenda(ft.Colors.ORANGE, "Regular"),
+                    item_leyenda(ft.Colors.RED, "Mala"),
+                    item_leyenda(ft.Colors.DEEP_PURPLE, "Muy Mala / Extrema"),
+                    ft.Text("Precipitaciones", weight=ft.FontWeight.W_600, size=12),
+                    item_leyenda(ft.Colors.LIGHT_BLUE, "0 mm (Sin lluvia)"),
+                    item_leyenda(ft.Colors.CYAN, "< 1 mm (Muy ligera)"),
+                    item_leyenda(ft.Colors.BLUE, "1 - 5 mm (Ligera)"),
+                    item_leyenda(ft.Colors.INDIGO, "5 - 20 mm (Moderada)"),
+                    item_leyenda(ft.Colors.DEEP_PURPLE, "> 20 mm (Intensa)"),
+                    ft.Text("Tráfico", weight=ft.FontWeight.W_600, size=12),
+                    item_leyenda(ft.Colors.GREEN, "Fluido"),
+                    item_leyenda(ft.Colors.AMBER, "Denso"),
+                    item_leyenda(ft.Colors.RED, "Congestionado"),
+                    item_leyenda(ft.Colors.BLACK, "Cortado / Sin Datos"),
+                ]
+            )
+        )
+
+        def toggle_leyenda(e):
+            contenedor_leyenda.visible = not contenedor_leyenda.visible
+            btn_leyenda.icon = ft.Icons.CLOSE if contenedor_leyenda.visible else ft.Icons.INFO_OUTLINE
+            btn_leyenda.update()
+            contenedor_leyenda.update()
+
+        btn_leyenda = ft.FloatingActionButton(
+            icon=ft.Icons.INFO_OUTLINE,
+            mini=True,
+            bottom=10,
+            left=10,
+            on_click=toggle_leyenda,
+            tooltip="Ver leyenda",
+            bgcolor=ft.Colors.with_opacity(0.9, ft.Colors.SURFACE_CONTAINER),
+        )
+
         page.add(
             ft.Tabs(
                 selected_index=0,
@@ -249,7 +328,7 @@ class MyApp:
                                                 columna_3,
                                             ]
                                         ),
-                                        spinner_inicio,
+                                        spinner_carga,
                                     ]
                                 ),
                                 ft.Column(
@@ -274,7 +353,16 @@ class MyApp:
                                         )
                                     ]
                                 ),
-                                MyMap(),
+                                # Tab "Mapa": Stack con el mapa y el selector de capas encima
+                                ft.Stack(
+                                    expand=True,
+                                    controls=[
+                                        mi_mapa,
+                                        selector_capas,
+                                        contenedor_leyenda,
+                                        btn_leyenda
+                                    ]
+                                )
                             ]
                         ),
                         ft.TabBar(
@@ -292,17 +380,17 @@ class MyApp:
         )
 
         # Arrancar la carga inicial en paralelo una vez la página está construida
-        page.run_task(cargar_datos_iniciales)
+        page.run_task(cargar_datos)
 
 
 if __name__ == "__main__":
-    # # Crear un hilo para arrancar el seudo-servidor Proxy de fondo
-    # hilo_tiles = threading.Thread(
-    #     target=arrancar_proxy_tiles,
-    #     daemon=True
-    # )
-    # # Iniciar el hilo
-    # hilo_tiles.start()
+    # Crear un hilo para arrancar el seudo-servidor Proxy de fondo
+    hilo_tiles = threading.Thread(
+        target=arrancar_proxy_tiles,
+        daemon=True
+    )
+    # Iniciar el hilo
+    hilo_tiles.start()
 
     # Arrancar la app
     ft.run(MyApp)

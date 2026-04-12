@@ -1,6 +1,5 @@
 from datetime import datetime
-from requests import request
-import os, datetime, requests, csv, io
+import os, datetime, requests, io
 from bs4 import BeautifulSoup
 import pandas as pd
 import flet as ft
@@ -61,12 +60,14 @@ class DataProvider():
             estaciones = [est["attributes"] for est in data["features"]]
             df = pd.DataFrame(estaciones)
 
+            print(f"[DataProvider] Datos de contaminación de {len(df)} estaciones obtenidos correctamente.")
+
             # Guardar los datos en un archivo parquet
             df.to_parquet(f"{DataProvider.REAL_TIME_CACHE_DIR}/contaminacion.parquet")
 
         except Exception as e:
             # En caso de no poder obtener los datos, se crea un dataframe con datos nulos
-            print(f"ERROR: No se ha podido obtener los datos de contaminación en tiempo real: {e}")
+            print(f"[DataProvider] No se ha podido obtener los datos de contaminación en tiempo real: {e}")
             page.show_dialog(ft.SnackBar(ft.Text("No se ha podido obtener los datos de contaminación en tiempo real. Mostrando datos en caché", color=ft.Colors.ON_ERROR_CONTAINER), bgcolor=ft.Colors.ERROR_CONTAINER))
             
             if os.path.exists(f"{DataProvider.REAL_TIME_CACHE_DIR}/contaminacion.parquet"):
@@ -130,7 +131,7 @@ class DataProvider():
 
             # Si no se han encontrado tablas, se imprime un mensaje
             if not tablas:
-                print("ERROR: No se han encontrado tablas de precipitaciones")
+                print("[DataProvider] No se han encontrado tablas de precipitaciones")
             else:
                 # Obtiene la primera tabla
                 tabla = tablas[0]
@@ -163,12 +164,14 @@ class DataProvider():
             # Parsea las columnas numéricas de string a float
             df = df.apply(lambda x: pd.to_numeric(x, errors="coerce") if x.name in numericos else x)
             
+            print(f"[DataProvider] Datos de precipitaciones de {len(df)} estaciones obtenidos correctamente.")
+
             # Guarda los datos en caché
             df.to_parquet(f"{DataProvider.REAL_TIME_CACHE_DIR}/precipitaciones.parquet")
 
         except Exception as e:
             # En caso de no poder obtener los datos, intenta usar los datos que hay en caché y si no existe, crea un dataframe con datos nulos
-            print(f"ERROR: No se ha podido obtener los datos de las precipitaciones en tiempo real: {e}")
+            print(f"[DataProvider] No se ha podido obtener los datos de las precipitaciones en tiempo real: {e}")
             page.show_dialog(ft.SnackBar(ft.Text("No se ha podido obtener los datos de las precipitaciones en tiempo real. Mostrando datos en caché", color=ft.Colors.ON_ERROR_CONTAINER), bgcolor=ft.Colors.ERROR_CONTAINER))
             
             if os.path.exists(f"{DataProvider.REAL_TIME_CACHE_DIR}/precipitaciones.parquet"):
@@ -266,11 +269,13 @@ class DataProvider():
             # Unir los dos dataframes
             df = pd.merge(df_int, df_est, on="fiwareid", how="inner")
 
+            print(f"[DataProvider] Datos de tráfico de {len(df)} tramos obtenidos correctamente.")
+
             # Guardar los datos en un archivo parquet
             df.to_parquet(f"{DataProvider.REAL_TIME_CACHE_DIR}/trafico.parquet")
 
         except Exception as e:
-            print(f"ERROR: No se ha podido obtener los datos del tráfico en tiempo real: {e}")
+            print(f"[DataProvider] No se ha podido obtener los datos del tráfico en tiempo real: {e}")
             page.show_dialog(ft.SnackBar(ft.Text("No se ha podido obtener los datos del tráfico en tiempo real. Mostrando datos en caché", color=ft.Colors.ON_ERROR_CONTAINER), bgcolor=ft.Colors.ERROR_CONTAINER))
 
             ruta_df = f"{DataProvider.REAL_TIME_CACHE_DIR}/trafico.parquet"
@@ -315,13 +320,14 @@ class DataProvider():
         Returns:
             pd.DataFrame: Dataframe con los datos históricos.
         """
-        def get_anio_contaminacion(anio: int):
-            """
-            Obtiene los datos históricos de la contaminación atmosférica de la ciudad de Valencia en un año concreto y lo guarda en un .parquet para mejorar el rendimiento.
+        # Obtiene el año
+        anio = datetime.datetime.strptime(fecha, "%Y-%m-%d").year
 
-            Args:
-                anio (int): Año del cual se quieren obtener los datos.
-            """
+        # Ruta del .parquet
+        parquet_path = f"{DataProvider.HIST_CACHE_DIR}/contaminacion/{anio}.parquet"
+
+        # Si no existe el .parquet, se crea
+        if not os.path.exists(parquet_path):
             # Datos historicos diarios en la Comunidad Valenciana desde 1994 hasta la actualidad
             url = f"https://dadesobertes.gva.es/va/dataset/med-cont-atmos-md-{anio}"
             
@@ -350,17 +356,6 @@ class DataProvider():
 
             # Guardar en parquet
             parquet_df.to_parquet(parquet_path)
-
-
-        # Obtiene el año
-        anio = datetime.datetime.strptime(fecha, "%Y-%m-%d").year
-
-        # Ruta del .parquet
-        parquet_path = f"{DataProvider.HIST_CACHE_DIR}/contaminacion/{anio}.parquet"
-
-        # Si no existe el .parquet, se crea
-        if not os.path.exists(parquet_path):
-            get_anio_contaminacion(anio)
 
         # Cargar el .parquet
         df = pd.read_parquet(parquet_path)
@@ -410,7 +405,7 @@ class DataProvider():
 
             # Si no se encontraron tablas, se imprime un mensaje
             if not tablas:
-                print("No se encontraron tablas")
+                print("[DataProvider] No se encontraron tablas de precipitaciones")
             else:
                 # Obtiene la tabla correcta
                 tabla = tablas[0]
@@ -440,19 +435,19 @@ class DataProvider():
         Returns:
             pd.DataFrame: Dataframe con los datos históricos.
         """
-        def get_url_descarga(anio):
-            """
-            Obtiene la url de descarga del archivo .ods.
+        # Obtener el año
+        anio = datetime.datetime.strptime(fecha, "%Y-%m-%d").year
+        anio_actual = datetime.date.today().year
 
-            Args:
-                anio (int): Año del cual se quiere obtener la url de descarga.
-            
-            Returns:
-                str: Url de descarga del archivo .ods.
-            """
+        # Ruta del .parquet
+        parquet_path = f"{DataProvider.HIST_CACHE_DIR}/trafico/{anio}.parquet"
+
+        if not os.path.exists(parquet_path) or anio == anio_actual:
+
             # Texto a buscar como contenido de etiqueta <a>
             text = f"Imds vehículos motorizados año {anio} (formato: ods)"
 
+            # Datos de IMD de tramos por año desde 2016 hasta la actualidad en la ciudad de Valencia
             # Obtiene el HTML de la página
             html = requests.get("https://www.valencia.es/cas/movilidad/otras-descargas").text
 
@@ -465,22 +460,13 @@ class DataProvider():
             # Obtiene la url de la etiqueta <a> que contenga el texto buscado
             url = [a["href"] for a in a_tags if a.get_text(strip=True) == text][0]
 
-            return url
-
-        # Obtener el año
-        anio = datetime.datetime.strptime(fecha, "%Y-%m-%d").year
-        anio_actual = datetime.date.today().year
-
-        if not os.path.exists(f"{DataProvider.HIST_CACHE_DIR}/trafico/{anio}.parquet") or anio == anio_actual:
-            # Datos de IMD por año desde 2016 hasta la actualidad en la ciudad de Valencia
-            url = get_url_descarga(anio)
-
             # Descargar el archivo .ods
             r = requests.get(url)
             ods = pd.read_excel(io.BytesIO(r.content), engine="odf", sheet_name=None)
 
             dfs = []
 
+            # Diferentes formatos de .ods según el año
             if 2016 <= anio <= 2018:
                 sheet_name = list(ods.keys())[0]
                 df = ods[sheet_name].copy()
@@ -554,23 +540,23 @@ class DataProvider():
                         if len(df.columns) >= 1:
                             df = df.rename(columns={df.columns[0]: 'Id Tramo'})
 
-                    # Keep strictly needed columns and add 'Mes'
+                    # Mantener las columnas estrictamente necesarias y añade 'Mes'
                     df = df[['Id Tramo', 'Tramo', 'Sentido', 'IMD']].copy()
                     df['Mes'] = mes_idx
                     dfs.append(df)
                     mes_idx += 1
 
-            # Concat all sheets (or months)
+            # Concatenar todas las hojas (o meses)
             df = pd.concat(dfs, ignore_index=True)
 
             # Asegurar que IMD es float
             df['IMD'] = pd.to_numeric(df['IMD'], errors='coerce')
 
             # Guardar en parquet
-            df.to_parquet(f"{DataProvider.HIST_CACHE_DIR}/trafico/{anio}.parquet")
+            df.to_parquet(parquet_path)
         
         # Cargar el parquet
-        df = pd.read_parquet(f"{DataProvider.HIST_CACHE_DIR}/trafico/{anio}.parquet")
+        df = pd.read_parquet(parquet_path)
         
         # Filtrar por fecha
         df = df.loc[df["Mes"] == datetime.datetime.strptime(fecha, "%Y-%m-%d").month]
@@ -583,7 +569,7 @@ class DataProvider():
 
 
     @staticmethod
-    def get_real_time_data(categoria: str):
+    def get_tiempo_real(categoria: str):
         """
         Obtiene los datos de tiempo real de la categoría seleccionada desde la caché.
 
@@ -606,7 +592,3 @@ class DataProvider():
             return pd.read_parquet(path)
         else:
             return pd.DataFrame()
-
-if __name__ == "__main__":
-    
-    DataProvider.get_hist_trafico("2016-01-01")

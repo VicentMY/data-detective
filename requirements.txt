@@ -1,10 +1,10 @@
 bs4==0.0.2
 Flask==3.1.2
-flet==0.80.5
-flet-cli==0.80.5
-flet-datatable2==0.80.5
-flet-map==0.80.5
-flet-web==0.80.5
+flet==0.83.1
+flet-cli==0.83.1
+flet-datatable2==0.83.1
+flet-map==0.83.1
+flet-web==0.83.1
 pandas==3.0.0
 pyarrow==23.0.1
 requests==2.32.5

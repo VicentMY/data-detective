@@ -1,6 +1,5 @@
 import datetime
 import flet as ft
-import pandas as pd
 
 from data_provider import DataProvider
 from widgets.export_dialog import ExportDialog
@@ -137,7 +136,7 @@ class MyColumn(ft.Column):
 
         # Si no hay datos, no se puede exportar
         if datos.empty:
-            print("No hay datos para exportar")
+            print("[MyCard] No hay datos para exportar")
             self.page.show_dialog(ft.SnackBar(ft.Text("No hay datos para exportar", color=ft.Colors.ON_ERROR_CONTAINER), bgcolor=ft.Colors.ERROR_CONTAINER))
             return
 
@@ -163,5 +162,5 @@ class MyColumn(ft.Column):
             elif tipo.lower() == "parquet":
                 datos.to_parquet(path, index=False)
             
-            print("Guardando en:", path)
+            print("[MyCard] Exportado en:", path)
             self.page.show_dialog(ft.SnackBar(ft.Text("Datos exportados correctamente", color=ft.Colors.ON_PRIMARY_CONTAINER), bgcolor=ft.Colors.PRIMARY_CONTAINER))
