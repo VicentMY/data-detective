@@ -19,7 +19,8 @@ class ExportDialog(ft.AlertDialog):
                     options=[
                         ft.dropdownm2.Option("CSV"),
                         ft.dropdownm2.Option("JSON"),
-                        ft.dropdownm2.Option("Parquet")
+                        ft.dropdownm2.Option("Parquet"),
+                        ft.dropdownm2.Option("PDF")
                     ],
                     value="CSV",
                     on_change=_on_change

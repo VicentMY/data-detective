@@ -178,7 +178,7 @@ class MyTable(ft2.DataTable2):
         path = await ft.FilePicker().save_file(
             dialog_title="Exportar datos como...",
             file_name=nombre_sugerido,
-            allowed_extensions=["csv", "json", "parquet"]
+            allowed_extensions=["csv", "json", "parquet", "pdf"]
         )
 
         # Si se selecciona una ruta, se exportan los datos
@@ -191,6 +191,19 @@ class MyTable(ft2.DataTable2):
 
             elif tipo.lower() == "parquet":
                 self.datos.to_parquet(path, index=False)
+
+            elif tipo.lower() == "pdf":
+                from widgets.pdf_export import exportar_df_a_pdf
+                titulo = f"[{self.categoria}] {self.fecha}"
+
+                if self.categoria == DataProvider.CONTAMINACION:
+                    chunk_size = 9
+                elif self.categoria == DataProvider.PRECIPITACIONES:
+                    chunk_size = 5
+                else:
+                    chunk_size = 6
+
+                exportar_df_a_pdf(self.datos, path, titulo=titulo, chunk_size=chunk_size)
             
             print("[MyTable] Exportado en:", path)
             self.page.show_dialog(ft.SnackBar(ft.Text("Datos exportados correctamente", color=ft.Colors.ON_PRIMARY_CONTAINER), bgcolor=ft.Colors.PRIMARY_CONTAINER))

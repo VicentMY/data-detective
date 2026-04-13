@@ -93,7 +93,7 @@ class MyColumn(ft.Column):
             self.txt_actualizado,
 
             # TODO: Reemplazar por gráfico comparando entre las estaciones
-            ft.Placeholder(expand=1),
+            ft.Container(expand=1),
 
             ft.Row(
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -163,7 +163,7 @@ class MyColumn(ft.Column):
         path = await ft.FilePicker().save_file(
             dialog_title="Exportar datos como...",
             file_name=nombre_sugerido,
-            allowed_extensions=["csv", "json", "parquet"]
+            allowed_extensions=["csv", "json", "parquet", "pdf"]
         )
 
         # Si se selecciona una ruta, se exportan los datos
@@ -176,6 +176,19 @@ class MyColumn(ft.Column):
 
             elif tipo.lower() == "parquet":
                 datos.to_parquet(path, index=False)
+
+            elif tipo.lower() == "pdf":
+                from widgets.pdf_export import exportar_df_a_pdf
+                titulo = f"Tiempo Real - {self.categoria}"
+
+                if self.categoria == DataProvider.CONTAMINACION:
+                    chunk_size = 12
+                elif self.categoria == DataProvider.PRECIPITACIONES:
+                    chunk_size = 6
+                else:
+                    chunk_size = 4
+
+                exportar_df_a_pdf(datos, path, titulo=titulo, chunk_size=chunk_size)
             
             print("[MyCard] Exportado en:", path)
             self.page.show_dialog(ft.SnackBar(ft.Text("Datos exportados correctamente", color=ft.Colors.ON_PRIMARY_CONTAINER), bgcolor=ft.Colors.PRIMARY_CONTAINER))
